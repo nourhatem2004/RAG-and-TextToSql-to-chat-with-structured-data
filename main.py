@@ -2,7 +2,6 @@ import os
 from dotenv import load_dotenv
 import google.generativeai as genai
 import pyodbc
-import json
 from langchain_huggingface import HuggingFaceEmbeddings
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
@@ -46,7 +45,6 @@ def get_schema_info(conn):
 def create_collections():
     configs = [
         ("db_info_collection", "Database schema"),
-        ("sql_pairs_collection", "SQL-question pairs")
     ]
     for cname, desc in configs:
         if not qdrant.collection_exists(cname):
@@ -77,17 +75,6 @@ def insert_schema_to_qdrant(schema_rows):
         ))
     qdrant.upsert(collection_name="db_info_collection", points=points)
 
-
-def insert_sql_pairs(pairs):
-    points = []
-    for q, sql in pairs:
-        emb = get_embedding(q)
-        points.append(PointStruct(
-            id=str(uuid.uuid4()),
-            vector=emb,
-            payload={"question": q, "sql": sql}
-        ))
-    qdrant.upsert(collection_name="sql_pairs_collection", points=points)
 
 
 def extract_words(question):
@@ -127,15 +114,7 @@ def generate_sql_from_question(keywords):
             limit=5
         )
 
-        
-        example_hits = qdrant.search(
-            collection_name="sql_pairs_collection",
-            query_vector=q_emb,
-            limit=3
-        )
-
         schema_context += "\n".join([hit.payload["description"] for hit in schema_hits])
-        example_context += "\n".join([f"Q: {hit.payload['question']}\nA: {hit.payload['sql']}" for hit in example_hits])
 
     print(schema_context)
     prompt = f"""
